@@ -31,7 +31,20 @@ import glob
 import collections
 import pprint
 import bisect
+import codecs
 
+
+def unicode_csv_reader(unicode_csv_data, dialect=csv.excel, **kwargs):
+    # csv.py doesn't do Unicode; encode temporarily as UTF-8:
+    csv_reader = csv.reader(utf_8_encoder(unicode_csv_data),
+                            dialect=dialect, **kwargs)
+    for row in csv_reader:
+        # decode UTF-8 back to Unicode, cell by cell:
+        yield [unicode(cell, 'utf-8') for cell in row]
+
+def utf_8_encoder(unicode_csv_data):
+    for line in unicode_csv_data:
+        yield line.encode('utf-8')
 
 def find_lt(a, x):
     """Find rightmost value less than x"""
@@ -61,7 +74,7 @@ def parse(isatab_ref):
         isatab_ref = fnames[0]
     assert os.path.exists(isatab_ref), "Did not find investigation file: %s" % isatab_ref
     i_parser = InvestigationParser()
-    with open(isatab_ref, "rU") as in_handle:
+    with codecs.open(isatab_ref, "rU",encoding='utf-8') as in_handle:
         rec = i_parser.parse(in_handle)
     s_parser = StudyAssayParser(isatab_ref)
     rec = s_parser.parse(rec)
@@ -90,7 +103,6 @@ class InvestigationParser:
         # parse top level investigation details
         rec = ISATabRecord()
         rec, _ = self._parse_region(rec, line_iter)
-
         # parse study information
         while 1:
             study = ISATabStudyRecord()
@@ -131,7 +143,7 @@ class InvestigationParser:
     def _line_iter(self, in_handle):
         """Read tab delimited file, handling ISA-Tab special case headers.
         """
-        reader = csv.reader(in_handle, dialect="excel-tab")
+        reader = unicode_csv_reader(in_handle, dialect="excel-tab")
         for line in reader:
             if len(line) > 0 and line[0]:
                 # check for section headers; all uppercase and a single value
@@ -175,7 +187,7 @@ class StudyAssayParser:
         self._col_quals = ("Performer", "Date", "Unit",
                            "Term Accession Number", "Term Source REF")
         self._col_types = {"attribute": ("Characteristics", "Factor Type",
-                                         "Comment", "Label", "Material Type", "Factor Value"),
+                                         "Comment", "Label", "Material Type", "Factor Value","Assay Name","Parameter Value[Trait Definition File]"),
                            "node" : ("Sample Name", "Source Name", "Image File",
                                      "Raw Data File", "Derived Data File", "Acquisition Parameter Data File"),
                            "node_assay" : ("Extract Name", "Labeled Extract Name",
